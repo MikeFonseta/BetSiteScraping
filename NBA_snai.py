@@ -1,19 +1,20 @@
 from time import sleep
 import sys
-import openpyxl
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+import pandas as pd
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.edge.service import Service
 
-CATEGORIA = 'U/O PUNTI+RIMB+ASSIST INCL. EV. OT'
+CATEGORIA = 'U/O PUNTI GIOC. INCL. EV. OT'
 
 
 def analisi():
     
     #Apertura foglio Excel già esistente
-    wb = openpyxl.load_workbook("Scraping.xlsx")
     data = []
-    #Caricamento file driver broswer (in questo caso Chrome con file per Mac)
-    driver = webdriver.Chrome('chromedriver')
+    
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
     #Impostazini grandezza browser
     driver.set_window_size(1200, 700)
     #Indirizzamento alla pagina web
@@ -71,13 +72,15 @@ def analisi():
 
     for z in range(0,len(matches)):
         text = matches[z].find_element(By.CLASS_NAME, 'nopaddingLeftRight.matchDescriptionFirstCol.footballWidthFirstCol').text
-        data.append([text[0:5],text[6:len(text)],{}])
+        
+        time = text[0:5]
+        match = text[6:len(text)]
+        #data.append([text[0:5],text[6:len(text)],{}])
 
         switchFieldPlayers = matches[z].find_elements(By.CLASS_NAME, 'switch-fieldPlayers')
 
         for y in range(0,len(switchFieldPlayers)):
 
-            
             clickPlayers = switchFieldPlayers[y].find_elements(By.CLASS_NAME, 'ng-scope')
             
             for x in range(0,len(clickPlayers)):        
@@ -89,7 +92,6 @@ def analisi():
                 switchfieldScoresFifty = matches[z].find_element(By.CLASS_NAME, 'ng-scope.switch-fieldScoresFifty')
                 quote = switchfieldScoresFifty.find_elements(By.TAG_NAME, 'label')
                 quoteValue = []
-                data[z][2][label.text] = []
                 quoteValue.append(label.text)
                 t = 0
                 temp = []
@@ -99,49 +101,20 @@ def analisi():
                     elif(t == 1):
                         temp.append(quota.text.split("\n"))
                         t = 0
-                        data[z][2][label.text].append(temp)
+                        data.append([time,match,label.text,temp[0][0],temp[0][1]])
+                        data.append([time,match,label.text,temp[1][0],temp[1][1]])
                         temp = []
                     t+=1
+
 
                 if x+1 < len(clickPlayers):
                     driver.execute_script("arguments[0].click();", clickPlayers[x+1].find_element(By.TAG_NAME, 'input'))
                 sleep(3)
-
-
-    titleSheet = 'NBA SNAI ' + CATEGORIA
-    sheet = wb.create_sheet(title = titleSheet.replace('/','-'))
-    #Inserimento nel foglio dei seguenti valori
     
-    #Inserimento di nomi squadre, tipo quote, valori
-    bIndex = 0
-    aIndex = 0
-    cIndex = 0
-    dIndex = 0
+    pd.DataFrame(data,columns=['Ora', 'Partita', 'Giocatore','Tipo Quota','Quota']).to_excel('Scraping.xlsx',index=False)
 
-    for x in range(0, len(data)):
-        bIndex+=2
-        aIndex = bIndex
-        sheet['A'+str(aIndex)] = data[x][0]
-        sheet['B'+str(bIndex)] = data[x][1]
-        aIndex+=1
-        bIndex+=1
-        for key,dataValue in data[x][2].items():
-            cIndex = bIndex
-            dIndex = bIndex
-
-            sheet['B'+str(bIndex)] = key
-            sheet['C'+str(cIndex)] = dataValue[0][0][0]
-            sheet['D'+str(dIndex)] = dataValue[0][0][1]
-            cIndex+=1
-            dIndex+=1
-            sheet['C'+str(cIndex)] = dataValue[0][1][0]
-            sheet['D'+str(dIndex)] = dataValue[0][1][1]
-            bIndex+=2
-    
-
-    print("Done Snai")
+    print("Done")
     #Salvataggio foglio excel
-    wb.save("Scraping.xlsx")
 
     sleep(5)
     driver.close()
